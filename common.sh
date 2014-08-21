@@ -271,10 +271,56 @@ function bridged_setup_firewall {
 }
 
 
+function clear_helper_bridge {
+
+    local iface=$INTERFACE
+    local link=$LINK
+    local bridge=$HELPER_BRIDGE
+
+    local peer1=$iface-to-$link
+    local peer2=$link-to-$iface
+    ovs-vsctl del-port $link $peer2
+    brctl delif $bridge $peer1
+    brctl delif $bridge $iface
+    ip link set $peer1 down
+    ip link set $peer2 down
+    ip link set $bridge down
+    ip link del $peer1 type veth peer name $peer2
+    brctl delbr $bridge
+
+}
+
+
+function setup_helper_bridge {
+
+    local iface=$INTERFACE
+    local link=$LINK
+    local bridge=$HELPER_BRIDGE
+
+    local peer1=$iface-to-$link
+    local peer2=$link-to-$iface
+    brctl addbr $bridge
+    ip link add $peer1 type veth peer name $peer2
+    ip link set $bridge up
+    ip link set $peer1 up
+    ip link set $peer2 up
+    ip link set $peer1 promisc on
+    ip link set $peer2 promisc on
+    brctl addif $bridge $iface
+    brctl addif $bridge $peer1
+    ovs-vsctl add-port $link $peer2
+
+    HELPER_PORT=$peer2
+
+}
+
+
 function clear_ovs {
 
     # Remove stale port
     ovs-vsctl del-port $INTERFACE || true
+
+    clear_helper_bridge
 
 }
 
@@ -283,16 +329,17 @@ function setup_ovs {
 
     # Bring interface up
     ip link set $INTERFACE up
-    # Add port
-    ovs-vsctl add-port ${LINK} $INTERFACE
+
+    setup_helper_bridge
+
     # Set up access port
     # From gnt-instance man page vlan should be either .VLAN_ID or VLAN_ID
     ACPORT=${VLAN%%:*}  # remove any trunk info
-    [ -n "$ACPORT" ] && ovs-vsctl set port $INTERFACE tag=${ACPORT#.}
+    [ -n "$ACPORT" ] && ovs-vsctl set port $HELPER_PORT tag=${ACPORT#.}
     # Set up trunk port
     # From gnt-instance man page vlan should be :VLAN_ID[:VLAN_ID2..]
     TRUNKS=${VLAN#.*:}  # remove any access info
-    [ -n "$TRUNKS" ] && ovs-vsctl set port $INTERFACE trunks=${TRUNKS//:/,}
+    [ -n "$TRUNKS" ] && ovs-vsctl set port $HELPER_PORT trunks=${TRUNKS//:/,}
 
 }
 
@@ -536,9 +583,10 @@ get_mode_info () {
     TABLE=
     INDEV=$link
   elif [ "$mode" = "openvswitch" ]; then
+    HELPER_BRIDGE=$iface-br
     BRIDGE=$link
     TABLE=
-    INDEV=$link
+    INDEV=$HELPER_BRIDGE
   fi
   log "* $iface: $mode @ $link"
 
