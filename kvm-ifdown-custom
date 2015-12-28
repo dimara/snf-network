@@ -49,5 +49,6 @@ try delete_neighbor_proxy
 try clear_nfdhcpd
 try clear_ebtables
 try clear_save
+try clear_ovs
 
 exit 0

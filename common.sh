@@ -269,6 +269,34 @@ function bridged_setup_firewall {
 		save ip6tables -I FORWARD -m physdev --physdev-out $INTERFACE -j $chain -m comment --comment "snf-network_firewall"
 	fi
 }
+
+
+function clear_ovs {
+
+    # Remove stale port
+    ovs-vsctl del-port $INTERFACE || true
+
+}
+
+
+function setup_ovs {
+
+    # Bring interface up
+    ip link set $INTERFACE up
+    # Add port
+    ovs-vsctl add-port ${LINK} $INTERFACE
+    # Set up access port
+    # From gnt-instance man page vlan should be either .VLAN_ID or VLAN_ID
+    ACPORT=${VLAN%%:*}  # remove any trunk info
+    [ -n "$ACPORT" ] && ovs-vsctl set port $INTERFACE tag=${ACPORT#.}
+    # Set up trunk port
+    # From gnt-instance man page vlan should be :VLAN_ID[:VLAN_ID2..]
+    TRUNKS=${VLAN#.*:}  # remove any access info
+    [ -n "$TRUNKS" ] && ovs-vsctl set port $INTERFACE trunks=${TRUNKS//:/,}
+
+}
+
+
 function init_ebtables {
 
   save runlocked $RUNLOCKED_OPTS ebtables -N $FROM -P RETURN
@@ -523,6 +551,10 @@ get_mode_info () {
     TABLE=$link
     INDEV=$iface
   elif [ "$mode" = "bridged" ]; then
+    BRIDGE=$link
+    TABLE=
+    INDEV=$link
+  elif [ "$mode" = "openvswitch" ]; then
     BRIDGE=$link
     TABLE=
     INDEV=$link

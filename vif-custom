@@ -60,6 +60,7 @@ try clear_bridged_setup_firewall
 try clear_ebtables
 try clear_nfdhcpd
 try clear_save
+try clear_ovs
 
 init_save
 
@@ -70,6 +71,9 @@ elif [ "$MODE" = "bridged" ]; then
   ip link set $INTERFACE up
   BRIDGE=$(xenstore_read_default "$XENBUS_PATH/bridge" "$LINK")
   brctl addif $BRIDGE $INTERFACE
+  success
+elif [ "$MODE" = "openvswitch" ]; then
+  try setup_ovs
   success
 fi
 

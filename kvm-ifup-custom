@@ -49,6 +49,7 @@ try clear_bridged_setup_firewall
 try clear_ebtables
 try clear_nfdhcpd
 try clear_save
+try clear_ovs
 
 init_save
 
@@ -58,6 +59,8 @@ elif [ "$MODE" = "bridged" ]; then
   ip link set $INTERFACE up
   brctl addif $BRIDGE $INTERFACE
   try bridged_setup_firewall
+elif [ "$MODE" = "openvswitch" ]; then
+  try setup_ovs
 fi
 
 for tag in $NETWORK_TAGS; do
